@@ -615,14 +615,14 @@ public class StructureTab extends ITab implements ActionListener, KeyListener,
                 baseChassisTurretWeight.setValue((double)getTank()
                         .getBaseChassisTurretWeight());
             } else {
-                baseChassisTurretWeight.setValue(0);
+                baseChassisTurretWeight.setValue(0.0);
             }
             baseChassisTurret2Weight.setEnabled(true);
             if (getTank().getBaseChassisTurret2Weight() >= 0) {
                 baseChassisTurret2Weight.setValue((double)getTank()
                         .getBaseChassisTurret2Weight());
             } else {
-                baseChassisTurret2Weight.setValue(0);
+                baseChassisTurret2Weight.setValue(0.0);
             }
         } else if (getTank().isOmni() && hasTurret()) {
             baseChassisTurretWeight.setEnabled(true);
@@ -630,15 +630,15 @@ public class StructureTab extends ITab implements ActionListener, KeyListener,
                 baseChassisTurretWeight.setValue((double)getTank()
                         .getBaseChassisTurretWeight());
             } else {
-                baseChassisTurretWeight.setValue(0);
+                baseChassisTurretWeight.setValue(0.0);
             }
             baseChassisTurret2Weight.setEnabled(false);
-            baseChassisTurret2Weight.setValue(0);
+            baseChassisTurret2Weight.setValue(0.0);
         } else {
             baseChassisTurretWeight.setEnabled(false);
             baseChassisTurret2Weight.setEnabled(false);
-            baseChassisTurretWeight.setValue(0);
-            baseChassisTurret2Weight.setValue(0);
+            baseChassisTurretWeight.setValue(0.0);
+            baseChassisTurret2Weight.setValue(0.0);
         }
     }
 
@@ -793,7 +793,7 @@ public class StructureTab extends ITab implements ActionListener, KeyListener,
     }
 
     private void updateTroopSpaceAllowed() {
-        float troops = getTank().getTroopCarryingSpace();
+    	double troops = getTank().getTroopCarryingSpace();
 
         if (troops > (int) getTank().getWeight()) {
             getTank().removeAllTransporters();
@@ -1157,9 +1157,8 @@ public class StructureTab extends ITab implements ActionListener, KeyListener,
         // suspension factor
         // depends on the weight, and is needed for the engine
         // rating
-        float oldWeight = getTank().getWeight();
-        getTank().setWeight(Float
-                .parseFloat(weight.getModel().getValue().toString()));
+    	double oldWeight = getTank().getWeight();
+        getTank().setWeight(Double.parseDouble(weight.getModel().getValue().toString()));
         int rating = Math
                 .max(10,
                         (Integer.parseInt(cruiseMP.getModel().getValue()
@@ -1170,6 +1169,7 @@ public class StructureTab extends ITab implements ActionListener, KeyListener,
             // if we changed weight, reset the weight if the rating is too high
             if (oldWeight < getTank().getWeight()) {
                 getTank().setWeight(oldWeight);
+                weight.getModel().setValue((int)oldWeight);
             } else {
                 // otherwise, set the cruiseMP spinner to the old value
                 cruiseMP.getModel().setValue(getTank().getOriginalWalkMP());
@@ -1179,10 +1179,8 @@ public class StructureTab extends ITab implements ActionListener, KeyListener,
                             this,
                             "That speed/weight combination would create an engine with a rating over 500.",
                             "Bad Engine Rating", JOptionPane.ERROR_MESSAGE);
-            weight.getModel().setValue(Integer.valueOf(Float.toString(oldWeight)));
         } else {
-            getTank().setWeight(Float.parseFloat(weight.getModel().getValue()
-                    .toString()));
+            getTank().setWeight(Double.parseDouble(weight.getModel().getValue().toString()));
             ((SpinnerNumberModel) troopStorage.getModel()).setMaximum(Double
                     .parseDouble(weight.getModel().getValue().toString()));
             getTank().autoSetInternal();
@@ -1209,12 +1207,12 @@ public class StructureTab extends ITab implements ActionListener, KeyListener,
     }
     
     private void useRemainingTonnageArmor() {
-        float currentTonnage = UnitUtil.getEntityVerifier(getTank())
+        double currentTonnage = UnitUtil.getEntityVerifier(getTank())
                 .calculateWeight();
         currentTonnage += UnitUtil.getUnallocatedAmmoTonnage(getTank());
-        float totalTonnage = getTank().getWeight();
-        float remainingTonnage = TestEntity.floor(
-                totalTonnage - currentTonnage, TestEntity.CEIL_HALFTON);
+        double totalTonnage = getTank().getWeight();
+        double remainingTonnage = TestEntity.floor(
+                totalTonnage - currentTonnage, TestEntity.Ceil.HALFTON);
         
         double maxArmor = Math.min(remainingTonnage,
                 UnitUtil.getMaximumArmorTonnage(getTank()));
@@ -1403,6 +1401,8 @@ public class StructureTab extends ITab implements ActionListener, KeyListener,
                 setArmorType(armorCombo, EquipmentType.T_ARMOR_STANDARD, false);
             }
         } else {
+            getTank().setArmorTechLevel(EquipmentType.get(getArmorType(armorCombo))
+                    .getTechLevel(getTank().getYear()));
             getTank().setArmorType(getArmorType(armorCombo));
         }
     }
@@ -1457,7 +1457,10 @@ public class StructureTab extends ITab implements ActionListener, KeyListener,
                 }
             } else {
                 et = EquipmentType.get(EquipmentType.getArmorTypeName(index, true));
-                if (et != null) {
+                if (et != null && et.hasFlag(MiscType.F_TANK_EQUIPMENT) && TechConstants
+                        .isLegal(getTank().getTechLevel(), et
+                                .getTechLevel(getTank().getYear()),
+                                isMixed)) {
                     if (et.hasFlag(MiscType.F_HARDENED_ARMOR)
                             && ((getTank().getMovementMode() == EntityMovementMode.HOVER)
                             || (getTank().getMovementMode() == EntityMovementMode.WIGE)
@@ -1467,7 +1470,10 @@ public class StructureTab extends ITab implements ActionListener, KeyListener,
                     armorCombo.addItem(EquipmentType.getArmorTypeName(index, true));
                 }
                 et = EquipmentType.get(EquipmentType.getArmorTypeName(index, false));
-                if (et != null) {
+                if (et != null && et.hasFlag(MiscType.F_TANK_EQUIPMENT) && TechConstants
+                        .isLegal(getTank().getTechLevel(), et
+                                .getTechLevel(getTank().getYear()),
+                                isMixed)) {
                     if (et.hasFlag(MiscType.F_HARDENED_ARMOR)
                             && ((getTank().getMovementMode() == EntityMovementMode.HOVER)
                             || (getTank().getMovementMode() == EntityMovementMode.WIGE)

@@ -328,16 +328,20 @@ public class UnitUtil {
             for (int slot = 0; slot < unit.getNumberOfCriticals(loc); slot++) {
                 CriticalSlot cs = unit.getCritical(loc, slot);
                 if ((cs != null)
-                        && (cs.getType() == CriticalSlot.TYPE_EQUIPMENT)
-                        && (cs.getMount().equals(eq))) {
-                    // If there are two pieces of equipment in this slot, remove
-                    // the first one, and replace it with the second
-                    if (cs.getMount2() != null) {
-                        cs.setMount(cs.getMount2());
+                        && (cs.getType() == CriticalSlot.TYPE_EQUIPMENT)) {
+                    if (cs.getMount().equals(eq)) {
+                        // If there are two pieces of equipment in this slot,
+                        // remove first one, and replace it with the second
+                        if (cs.getMount2() != null) {
+                            cs.setMount(cs.getMount2());
+                            cs.setMount2(null);
+                        } else { // If it's the only Mounted, clear the slot
+                            cs = null;
+                            unit.setCritical(loc, slot, cs);
+                        }
+                    } else if ((cs.getMount2() != null)
+                            && cs.getMount2().equals(eq)) {
                         cs.setMount2(null);
-                    } else { // If it's the only Mounted, clear the slot
-                        cs = null;
-                        unit.setCritical(loc, slot, cs);
                     }
                 }
             }
@@ -553,7 +557,7 @@ public class UnitUtil {
      */
     public static void removeHeatSinks(Mech unit, int number) {
         Vector<Mounted> toRemove = new Vector<Mounted>();
-        int base = UnitUtil.getBaseChassisHeatSinks(unit,
+        int base = UnitUtil.getCriticalFreeHeatSinks(unit,
                 unit.hasCompactHeatSinks());
         boolean splitCompact = false;
         if (unit.hasCompactHeatSinks()) {
@@ -657,7 +661,7 @@ public class UnitUtil {
         // for the engine, if any
         int currentSinks = UnitUtil.countActualHeatSinks(unit);
         int engineCompacts = Math.min(hsAmount,
-                UnitUtil.getBaseChassisHeatSinks(unit, true));
+                UnitUtil.getCriticalFreeHeatSinks(unit, true));
         int engineToAdd = Math.max(0, engineCompacts - currentSinks);
         unit.addEngineSinks("IS1 Compact Heat Sink", engineToAdd);
         int restHS = hsAmount - engineToAdd;
@@ -706,7 +710,7 @@ public class UnitUtil {
      * @param unit
      */
     public static Mounted getSingleCompactHeatSink(Mech unit) {
-        int base = UnitUtil.getBaseChassisHeatSinks(unit, true);
+        int base = UnitUtil.getCriticalFreeHeatSinks(unit, true);
         for (Mounted m : unit.getMisc()) {
             if (m.getType().hasFlag(MiscType.F_COMPACT_HEAT_SINK)
                     && m.getType().hasFlag(MiscType.F_HEAT_SINK)) {
@@ -802,7 +806,7 @@ public class UnitUtil {
      * @param unit
      */
     public static void updateAutoSinks(Mech unit, String hsType) {
-        int base = UnitUtil.getBaseChassisHeatSinks(unit,
+        int base = UnitUtil.getCriticalFreeHeatSinks(unit,
                 hsType.equals("Compact"));
         Vector<Mounted> unassigned = new Vector<Mounted>();
         Vector<Mounted> assigned = new Vector<Mounted>();
@@ -821,17 +825,14 @@ public class UnitUtil {
         }
         for (Mounted m : assigned) {
             if (needed <= 0) {
-                break;
+                return;
             }
             UnitUtil.removeCriticals(unit, m);
             m.setLocation(Entity.LOC_NONE);
             needed--;
         }
-        // if for some reason we still didn't find enough heat sinks then make
-        // some more
-        if (needed > 0) {
-            UnitUtil.addHeatSinkMounts(unit, needed, hsType);
-        }
+        // There may be more crit-free heatsinks, but if the 'mech doesn't
+        // have that many heatsinks, the additional space is unused.
     }
 
     public static boolean isJumpJet(Mounted m) {
@@ -1891,7 +1892,17 @@ public class UnitUtil {
         return sb.toString();
     }
 
-    public static int getBaseChassisHeatSinks(Entity unit, boolean compact) {
+    /**
+     * Return the number of critical-space free heatsinks that the given entity
+     * can have.
+     * 
+     * @param unit
+     *            The unit mounting the heatsinks
+     * @param compact
+     *            Whether the heatsinks are compact or not
+     * @return T he number of critical-free heat sinks.
+     */
+    public static int getCriticalFreeHeatSinks(Entity unit, boolean compact) {
         int engineHSCapacity = unit.getEngine().integralHeatSinkCapacity(
                 compact);
 
@@ -2963,6 +2974,13 @@ public class UnitUtil {
 
     public static boolean isValidLocation(Entity unit, EquipmentType eq,
             int location) {
+        if (unit instanceof BattleArmor) {
+            // Infantry weapons can only be mounted in armored gloves/APMs
+            if (eq.hasFlag(WeaponType.F_INFANTRY)) {
+                return false;
+            }
+            return true;
+        }
         if ((eq instanceof MiscType)) {
             if (((eq.hasFlag(MiscType.F_CLUB) || eq
                     .hasFlag(MiscType.F_HAND_WEAPON)))) {
@@ -2987,7 +3005,9 @@ public class UnitUtil {
             if (eq.hasFlag(MiscType.F_ACTUATOR_ENHANCEMENT_SYSTEM)) {
                 if ((location != Mech.LOC_RARM) && (location != Mech.LOC_LARM)
                         && (location != Mech.LOC_LLEG)
-                        && (location != Mech.LOC_RLEG)) {
+                        && (location != Mech.LOC_RLEG)
+                        && ((unit instanceof TripodMech) 
+                                && location != Mech.LOC_CLEG)) {
                     return false;
                 }
             }
@@ -3298,7 +3318,7 @@ public class UnitUtil {
 
     public static int countUnallocatedCriticals(Mech unit) {
         int nCrits = 0;
-        int engineHeatSinkCount = UnitUtil.getBaseChassisHeatSinks(unit,
+        int engineHeatSinkCount = UnitUtil.getCriticalFreeHeatSinks(unit,
                 unit.hasCompactHeatSinks());
         for (Mounted mount : unit.getMisc()) {
             if (UnitUtil.isHeatSink(mount)

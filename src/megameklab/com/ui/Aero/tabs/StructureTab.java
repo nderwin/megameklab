@@ -1202,11 +1202,15 @@ public class StructureTab extends ITab implements ActionListener, KeyListener,
                 }
             } else {
                 et = EquipmentType.get(EquipmentType.getArmorTypeName(type, true));
-                if (et != null) {
+                if (et != null && TechConstants.isLegal(getAero().getTechLevel(), et
+                                .getTechLevel(getAero().getYear()),
+                                true)) {
                     armorCombo.addItem(EquipmentType.getArmorTypeName(type, true));
                 }
                 et = EquipmentType.get(EquipmentType.getArmorTypeName(type, false));
-                if (et != null) {
+                if (et != null && TechConstants.isLegal(getAero().getTechLevel(), et
+                                .getTechLevel(getAero().getYear()),
+                                true)) {
                     armorCombo.addItem(EquipmentType.getArmorTypeName(type, false));
                 }
                 if (type == EquipmentType.T_ARMOR_PATCHWORK) {
@@ -1467,7 +1471,7 @@ public class StructureTab extends ITab implements ActionListener, KeyListener,
                 refreshEngine(true);
             } else if (spinner.equals(fuel)) {
                 double fuelTons = Math.round(((Double) fuel.getValue()) * 2) / 2.0;
-                getAero().setFuelTonnage((float)fuelTons);
+                getAero().setFuelTonnage(fuelTons);
             } else if (spinner.equals(armorTonnage)) {
                 setArmorTonnage();
             } else if (spinner.equals(heatSinkNumber)) {
@@ -1524,12 +1528,12 @@ public class StructureTab extends ITab implements ActionListener, KeyListener,
     }
     
     private void useRemainingTonnageArmor() {
-        float currentTonnage = UnitUtil.getEntityVerifier(getAero())
+    	double currentTonnage = UnitUtil.getEntityVerifier(getAero())
                 .calculateWeight();
         currentTonnage += UnitUtil.getUnallocatedAmmoTonnage(getAero());
-        float totalTonnage = getAero().getWeight();
-        float remainingTonnage = TestEntity.floor(
-                totalTonnage - currentTonnage, TestEntity.CEIL_HALFTON);
+        double totalTonnage = getAero().getWeight();
+        double remainingTonnage = TestEntity.floor(
+                totalTonnage - currentTonnage, TestEntity.Ceil.HALFTON);
         
         double maxArmor = Math.min(remainingTonnage,
                 UnitUtil.getMaximumArmorTonnage(getAero()));

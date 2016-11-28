@@ -29,6 +29,7 @@ import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import javax.swing.AbstractSpinnerModel;
@@ -665,7 +666,7 @@ public class StructureTab extends ITab implements ActionListener, KeyListener,
         }
 
         lblFreeSinks.setText("Engine Free: "
-                + UnitUtil.getBaseChassisHeatSinks(getMech(), getMech()
+                + UnitUtil.getCriticalFreeHeatSinks(getMech(), getMech()
                         .hasCompactHeatSinks()));
 
         if (getMech().isClan()) {
@@ -692,7 +693,9 @@ public class StructureTab extends ITab implements ActionListener, KeyListener,
 
         cockpitType.setSelectedItem(Mech.COCKPIT_SHORT_STRING[getMech()
                 .getCockpitType()]);
-        gyroType.setSelectedIndex(getMech().getGyroType());
+
+        String gyroName = Mech.GYRO_SHORT_STRING[getMech().getGyroType()];
+        gyroType.setSelectedItem(gyroName);
 
         if (getMech().isMixedTech()) {
             if (getMech().isClan()) {
@@ -829,7 +832,9 @@ public class StructureTab extends ITab implements ActionListener, KeyListener,
                                     "A XL gyro does not fit with a large engine installed",
                                     "Bad Gyro", JOptionPane.ERROR_MESSAGE);
                 } else {
-                    getMech().setGyroType(combo.getSelectedIndex());
+                    int gyroType = Arrays.asList(Mech.GYRO_SHORT_STRING)
+                            .indexOf(((String)combo.getSelectedItem()).replace("(IS) ", ""));
+                    getMech().setGyroType(gyroType);
                     getMech().clearGyroCrits();
 
                     switch (getMech().getGyroType()) {
@@ -1532,13 +1537,19 @@ public class StructureTab extends ITab implements ActionListener, KeyListener,
             } else {
                 et = EquipmentType.get(EquipmentType.getArmorTypeName(index,
                         true));
-                if (et != null) {
+                if (et != null && et.hasFlag(MiscType.F_MECH_EQUIPMENT) && TechConstants
+                        .isLegal(getMech().getTechLevel(), et
+                                .getTechLevel(getMech().getYear()),
+                                isMixed)) {
                     armorCombo.addItem(EquipmentType.getArmorTypeName(index,
                             true));
                 }
                 et = EquipmentType.get(EquipmentType.getArmorTypeName(index,
                         false));
-                if (et != null) {
+                if (et != null && et.hasFlag(MiscType.F_MECH_EQUIPMENT) && TechConstants
+                        .isLegal(getMech().getTechLevel(), et
+                                .getTechLevel(getMech().getYear()),
+                                isMixed)) {
                     armorCombo.addItem(EquipmentType.getArmorTypeName(index,
                             false));
                 }
@@ -1691,6 +1702,8 @@ public class StructureTab extends ITab implements ActionListener, KeyListener,
                             .addItem(Mech.COCKPIT_SHORT_STRING[Mech.COCKPIT_COMMAND_CONSOLE]);
                 }
             }
+        } else if (getMech() instanceof TripodMech) {
+            cockpitType.addItem(Mech.COCKPIT_SHORT_STRING[Mech.COCKPIT_TRIPOD]);
         } else {
             switch (getMech().getTechLevel()) {
                 case TechConstants.T_INTRO_BOXSET:
@@ -1897,6 +1910,7 @@ public class StructureTab extends ITab implements ActionListener, KeyListener,
                 jjCount = 1;
                 break;
             case TechConstants.T_IS_EXPERIMENTAL:
+            case TechConstants.T_IS_UNOFFICIAL:
                 jjCount = jjTypes.length;
                 break;
             default:
@@ -1910,8 +1924,10 @@ public class StructureTab extends ITab implements ActionListener, KeyListener,
         /* GYRO */
         String[] gyroList = new String[0];
         gyroType.removeAllItems();
-
-        if (isMixed) {
+        if (getMech().isSuperHeavy()) {
+            gyroList = new String[1];
+            gyroList[0] = Mech.GYRO_SHORT_STRING[Mech.GYRO_SUPERHEAVY];
+        } else if (isMixed) {
             if (isClan) {
                 int gyroPos = 0;
                 gyroList = new String[Mech.GYRO_SHORT_STRING.length];
@@ -1941,6 +1957,10 @@ public class StructureTab extends ITab implements ActionListener, KeyListener,
         for (String gyro : gyroList) {
             if (gyro.equals(Mech.GYRO_SHORT_STRING[Mech.GYRO_NONE])
                     && !(getMech().getCockpitType() == Mech.COCKPIT_INTERFACE)) {
+                continue;
+            }
+            if (gyro.equals(Mech.GYRO_SHORT_STRING[Mech.GYRO_SUPERHEAVY])
+                    && !getMech().isSuperHeavy()) {
                 continue;
             }
             gyroType.addItem(gyro);
@@ -2025,16 +2045,13 @@ public class StructureTab extends ITab implements ActionListener, KeyListener,
                         .getWalkMP(true, false, true));
                 UnitUtil.updateJumpJets(getMech(), jump, Mech.JUMP_STANDARD);
             }
-            int selGyro = getMech().getGyroType();
-            if (gyroType.getItemCount() <= selGyro) {
-                selGyro = -1;
-            }
-            gyroType.setSelectedIndex(selGyro);
+            String gyroName = Mech.GYRO_SHORT_STRING[getMech().getGyroType()];
+            gyroType.setSelectedItem(gyroName);
             if (gyroType.getSelectedIndex() == -1) {
-                gyroType.setSelectedIndex(0);
                 getMech().clearGyroCrits();
                 getMech().addGyro();
             }
+
             setEnhancementCombo();
             if (enhancement.getSelectedIndex() == -1) {
                 enhancement.setSelectedIndex(0);
@@ -2148,13 +2165,15 @@ public class StructureTab extends ITab implements ActionListener, KeyListener,
                 }
                 getMech().setWeight((Integer) weightClass.getValue());
                 getMech().autoSetInternal();
-                resetEngine();
+                populateChoices(true);
                 if (changedSuperHeavyStatus) {
                     // Interal structure crits may change
                     UnitUtil.removeISorArmorMounts(getMech(), true);
                     createISMounts();
+                    getMech().clearGyroCrits();
+                    getMech().addGyro();
                 }
-                populateChoices(true);
+                resetEngine();
             } else if (spinner.equals(walkMP)) {
                 resetEngine();
             } else if (spinner.equals(jumpMP)) {
@@ -2247,12 +2266,12 @@ public class StructureTab extends ITab implements ActionListener, KeyListener,
     }
     
     private void useRemainingTonnageArmor() {
-        float currentTonnage = UnitUtil.getEntityVerifier(getMech())
+    	double currentTonnage = UnitUtil.getEntityVerifier(getMech())
                 .calculateWeight();
         currentTonnage += UnitUtil.getUnallocatedAmmoTonnage(getMech());
-        float totalTonnage = getMech().getWeight();
-        float remainingTonnage = TestEntity.floor(
-                totalTonnage - currentTonnage, TestEntity.CEIL_HALFTON);
+        double totalTonnage = getMech().getWeight();
+        double remainingTonnage = TestEntity.floor(
+                totalTonnage - currentTonnage, TestEntity.Ceil.HALFTON);
         
         double maxArmor = Math.min(remainingTonnage,
                 UnitUtil.getMaximumArmorTonnage(getMech()));
